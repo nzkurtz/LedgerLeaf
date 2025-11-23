@@ -17,7 +17,7 @@ LedgerLeaf is a simple expense tracking application that provides visual analyti
 
 ## Tech Stack
 
-**Backend:** Python, FastAPI, SQLite, Pydantic, Uvicorn
+**Backend:** Python, FastAPI, SQLite, Pydantic, Uvicorn   
 **Frontend:** Vanilla JavaScript, HTML5, CSS3, Chart.js
 
 ## License
