@@ -47,6 +47,21 @@ def init_db():
         )
     ''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS loans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            principal REAL NOT NULL,
+            annual_rate REAL NOT NULL,
+            years INTEGER NOT NULL,
+            extra_payment REAL DEFAULT 0,
+            monthly_payment REAL NOT NULL,
+            start_date TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -87,6 +102,26 @@ class LoanInput(BaseModel):
     annual_rate: float
     years: int
     extra_payment: float = 0
+
+class LoanCreate(BaseModel):
+    name: str
+    principal: float
+    annual_rate: float
+    years: int
+    extra_payment: float = 0
+    start_date: str
+
+class Loan(BaseModel):
+    id: int
+    name: str
+    principal: float
+    annual_rate: float
+    years: int
+    extra_payment: float
+    monthly_payment: float
+    start_date: str
+    is_active: bool
+    created_at: str
 
 
 # -------------------------
@@ -188,22 +223,34 @@ def create_expense(expense: ExpenseCreate):
     )
 
 @app.get("/expenses", response_model=List[Expense])
-def get_expenses(category: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None):
+def get_expenses(
+    category: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    month: Optional[int] = None,
+    year: Optional[int] = None
+):
     conn = get_db()
     c = conn.cursor()
 
     query = "SELECT * FROM expenses WHERE 1=1"
     params = []
 
+    if month and year:
+        query += " AND strftime('%Y', date) = ? AND strftime('%m', date) = ?"
+        params.append(str(year))
+        params.append(f"{month:02d}")
+    else:
+        if start_date:
+            query += " AND date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND date <= ?"
+            params.append(end_date)
+
     if category:
         query += " AND category = ?"
         params.append(category)
-    if start_date:
-        query += " AND date >= ?"
-        params.append(start_date)
-    if end_date:
-        query += " AND date <= ?"
-        params.append(end_date)
 
     query += " ORDER BY date DESC"
 
@@ -252,19 +299,29 @@ def create_income(income: IncomeCreate):
     )
 
 @app.get("/income", response_model=List[Income])
-def get_income(start_date: Optional[str] = None, end_date: Optional[str] = None):
+def get_income(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    month: Optional[int] = None,
+    year: Optional[int] = None
+):
     conn = get_db()
     c = conn.cursor()
 
     query = "SELECT * FROM income WHERE 1=1"
     params = []
 
-    if start_date:
-        query += " AND date >= ?"
-        params.append(start_date)
-    if end_date:
-        query += " AND date <= ?"
-        params.append(end_date)
+    if month and year:
+        query += " AND strftime('%Y', date) = ? AND strftime('%m', date) = ?"
+        params.append(str(year))
+        params.append(f"{month:02d}")
+    else:
+        if start_date:
+            query += " AND date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND date <= ?"
+            params.append(end_date)
 
     query += " ORDER BY date DESC"
 
@@ -290,7 +347,12 @@ def delete_income(income_id: int):
 
 # Analytics Route
 @app.get("/analytics")
-def get_analytics(start_date: Optional[str] = None, end_date: Optional[str] = None):
+def get_analytics(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    month: Optional[int] = None,
+    year: Optional[int] = None
+):
     conn = get_db()
     c = conn.cursor()
 
@@ -298,12 +360,17 @@ def get_analytics(start_date: Optional[str] = None, end_date: Optional[str] = No
     query = "SELECT category, SUM(amount) as total FROM expenses WHERE 1=1"
     params = []
 
-    if start_date:
-        query += " AND date >= ?"
-        params.append(start_date)
-    if end_date:
-        query += " AND date <= ?"
-        params.append(end_date)
+    if month and year:
+        query += " AND strftime('%Y', date) = ? AND strftime('%m', date) = ?"
+        params.append(str(year))
+        params.append(f"{month:02d}")
+    else:
+        if start_date:
+            query += " AND date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND date <= ?"
+            params.append(end_date)
 
     query += " GROUP BY category"
 
@@ -314,18 +381,25 @@ def get_analytics(start_date: Optional[str] = None, end_date: Optional[str] = No
     income_query = "SELECT SUM(amount) FROM income WHERE 1=1"
     income_params = []
 
-    if start_date:
-        income_query += " AND date >= ?"
-        income_params.append(start_date)
-    if end_date:
-        income_query += " AND date <= ?"
-        income_params.append(end_date)
+    if month and year:
+        income_query += " AND strftime('%Y', date) = ? AND strftime('%m', date) = ?"
+        income_params.append(str(year))
+        income_params.append(f"{month:02d}")
+    else:
+        if start_date:
+            income_query += " AND date >= ?"
+            income_params.append(start_date)
+        if end_date:
+            income_query += " AND date <= ?"
+            income_params.append(end_date)
 
     c.execute(income_query, income_params)
     total_income = c.fetchone()[0] or 0
 
     # Get total expenses
     expense_query = "SELECT SUM(amount) FROM expenses WHERE 1=1"
+    if month and year:
+        expense_query += " AND strftime('%Y', date) = ? AND strftime('%m', date) = ?"
     c.execute(expense_query, params)
     total_expenses = c.fetchone()[0] or 0
 
@@ -342,3 +416,100 @@ def get_analytics(start_date: Optional[str] = None, end_date: Optional[str] = No
 @app.post("/calc/loan")
 def loan_route(data: LoanInput):
     return calculate_loan(data)
+
+# Loan Management Routes
+@app.post("/loans", response_model=Loan)
+def create_loan(loan: LoanCreate):
+    conn = get_db()
+    c = conn.cursor()
+    created_at = datetime.now().isoformat()
+
+    # Calculate monthly payment
+    P = loan.principal
+    r = loan.annual_rate / 100 / 12
+    n = loan.years * 12
+
+    if r == 0:
+        monthly_payment = P / n
+    else:
+        monthly_payment = P * r / (1 - (1 + r) ** -n)
+
+    monthly_payment = round(monthly_payment, 2)
+
+    c.execute('''
+        INSERT INTO loans (name, principal, annual_rate, years, extra_payment, monthly_payment, start_date, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (loan.name, loan.principal, loan.annual_rate, loan.years, loan.extra_payment, monthly_payment, loan.start_date, created_at))
+
+    conn.commit()
+    loan_id = c.lastrowid
+    conn.close()
+
+    return Loan(
+        id=loan_id,
+        name=loan.name,
+        principal=loan.principal,
+        annual_rate=loan.annual_rate,
+        years=loan.years,
+        extra_payment=loan.extra_payment,
+        monthly_payment=monthly_payment,
+        start_date=loan.start_date,
+        is_active=True,
+        created_at=created_at
+    )
+
+@app.get("/loans", response_model=List[Loan])
+def get_loans(active_only: bool = True):
+    conn = get_db()
+    c = conn.cursor()
+
+    query = "SELECT * FROM loans"
+    if active_only:
+        query += " WHERE is_active = 1"
+    query += " ORDER BY created_at DESC"
+
+    c.execute(query)
+    rows = c.fetchall()
+    conn.close()
+
+    return [Loan(**dict(row)) for row in rows]
+
+@app.delete("/loans/{loan_id}")
+def delete_loan(loan_id: int):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("UPDATE loans SET is_active = 0 WHERE id = ?", (loan_id,))
+    conn.commit()
+    updated = c.rowcount
+    conn.close()
+
+    if updated == 0:
+        raise HTTPException(status_code=404, detail="Loan not found")
+
+    return {"message": "Loan deactivated"}
+
+@app.get("/loans/monthly-total")
+def get_monthly_loan_total(month: Optional[int] = None, year: Optional[int] = None):
+    conn = get_db()
+    c = conn.cursor()
+
+    # Get all active loans
+    c.execute("SELECT monthly_payment, extra_payment, start_date FROM loans WHERE is_active = 1")
+    loans = c.fetchall()
+    conn.close()
+
+    total = 0
+    for loan in loans:
+        monthly_payment = loan[0]
+        extra_payment = loan[1]
+        start_date = loan[2]
+
+        # Check if loan is active for the given month
+        if month and year:
+            start = datetime.fromisoformat(start_date)
+            if start.year < year or (start.year == year and start.month <= month):
+                total += monthly_payment + extra_payment
+        else:
+            total += monthly_payment + extra_payment
+
+    return {"total": round(total, 2)}

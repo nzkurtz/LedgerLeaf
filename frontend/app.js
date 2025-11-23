@@ -1,13 +1,48 @@
 const API = "http://127.0.0.1:8000";
 let currentTransactionType = 'expense';
 
+// Month state
+let currentMonth = new Date().getMonth() + 1; // 1-12
+let currentYear = new Date().getFullYear();
+
+// Month names
+const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('date').value = today;
+    updateMonthDisplay();
     loadDashboard();
     loadTransactions();
 });
+
+// -------------------------
+// Month Navigation
+// -------------------------
+function updateMonthDisplay() {
+    const monthText = `${monthNames[currentMonth - 1]} ${currentYear}`;
+    document.getElementById('currentMonth').textContent = monthText;
+}
+
+function changeMonth(delta) {
+    currentMonth += delta;
+
+    if (currentMonth > 12) {
+        currentMonth = 1;
+        currentYear++;
+    } else if (currentMonth < 1) {
+        currentMonth = 12;
+        currentYear--;
+    }
+
+    updateMonthDisplay();
+    loadDashboard();
+    loadTransactions();
+}
 
 // -------------------------
 // Tab Switching
@@ -33,6 +68,7 @@ function switchTab(tab) {
     } else if (tab === 'loan') {
         loanSection.classList.add('active');
         navBtns[2].classList.add('active');
+        loadActiveLoans();
     }
 }
 
@@ -112,16 +148,32 @@ async function addTransaction(event) {
 // -------------------------
 async function loadDashboard() {
     try {
-        const analyticsRes = await fetch(`${API}/analytics`);
+        const analyticsRes = await fetch(`${API}/analytics?month=${currentMonth}&year=${currentYear}`);
         const analytics = await analyticsRes.json();
 
+        const loanTotalRes = await fetch(`${API}/loans/monthly-total?month=${currentMonth}&year=${currentYear}`);
+        const loanTotal = await loanTotalRes.json();
+        const loanPayments = loanTotal.total || 0;
+
+        const totalExpensesWithLoans = analytics.total_expenses + loanPayments;
+
         document.getElementById('totalIncome').textContent = `$${analytics.total_income.toFixed(2)}`;
-        document.getElementById('totalExpenses').textContent = `$${analytics.total_expenses.toFixed(2)}`;
-        document.getElementById('netAmount').textContent = `$${analytics.net.toFixed(2)}`;
+        document.getElementById('totalExpenses').textContent = `$${totalExpensesWithLoans.toFixed(2)}`;
+        document.getElementById('netAmount').textContent = `$${(analytics.total_income - totalExpensesWithLoans).toFixed(2)}`;
 
         const categoryContainer = document.getElementById('categoryBreakdown');
+        let html = '';
+
+        if (loanPayments > 0) {
+            html += `
+                <div class="category-item">
+                    <span class="category-name">Loan Payments</span>
+                    <span class="category-amount">$${loanPayments.toFixed(2)}</span>
+                </div>
+            `;
+        }
+
         if (Object.keys(analytics.by_category).length > 0) {
-            let html = '';
             for (const [category, amount] of Object.entries(analytics.by_category)) {
                 html += `
                     <div class="category-item">
@@ -130,15 +182,18 @@ async function loadDashboard() {
                     </div>
                 `;
             }
+        }
+
+        if (html) {
             categoryContainer.innerHTML = html;
         } else {
             categoryContainer.innerHTML = '<p class="text-muted">No expenses yet</p>';
         }
 
-        const expensesRes = await fetch(`${API}/expenses`);
+        const expensesRes = await fetch(`${API}/expenses?month=${currentMonth}&year=${currentYear}`);
         const expenses = await expensesRes.json();
 
-        const incomeRes = await fetch(`${API}/income`);
+        const incomeRes = await fetch(`${API}/income?month=${currentMonth}&year=${currentYear}`);
         const income = await incomeRes.json();
 
         const allTransactions = [
@@ -188,15 +243,15 @@ function displayRecentTransactions(transactions) {
 async function loadTransactions() {
     try {
         const category = document.getElementById('filterCategory')?.value || '';
-        let url = `${API}/expenses`;
+        let url = `${API}/expenses?month=${currentMonth}&year=${currentYear}`;
         if (category) {
-            url += `?category=${category}`;
+            url += `&category=${category}`;
         }
 
         const expensesRes = await fetch(url);
         const expenses = await expensesRes.json();
 
-        const incomeRes = await fetch(`${API}/income`);
+        const incomeRes = await fetch(`${API}/income?month=${currentMonth}&year=${currentYear}`);
         const income = await incomeRes.json();
 
         const allTransactions = [
@@ -303,6 +358,116 @@ async function calculateLoan() {
     } catch (error) {
         document.getElementById("loanResult").innerHTML =
             '<div class="alert alert-warning">Error calculating loan. Make sure the backend is running.</div>';
+    }
+}
+
+// -------------------------
+// Add Loan to Budget
+// -------------------------
+async function addLoanToBudget() {
+    const name = document.getElementById("loanName").value;
+    const principal = parseFloat(document.getElementById("principal").value);
+    const annual_rate = parseFloat(document.getElementById("rate").value);
+    const years = parseInt(document.getElementById("years").value);
+    const extra_payment = parseFloat(document.getElementById("extra_payment").value) || 0;
+    const start_date = document.getElementById("loanStartDate").value;
+
+    if (!name || !principal || !years || !start_date) {
+        alert("Please fill in all required fields including loan name and start date.");
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API}/loans`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                name,
+                principal,
+                annual_rate,
+                years,
+                extra_payment,
+                start_date
+            })
+        });
+
+        const loan = await res.json();
+        alert(`Loan "${loan.name}" added! Monthly payment: $${loan.monthly_payment.toFixed(2)}`);
+
+        // Reset form
+        document.getElementById("loanName").value = '';
+        document.getElementById("principal").value = '';
+        document.getElementById("rate").value = '';
+        document.getElementById("years").value = '';
+        document.getElementById("extra_payment").value = '';
+        document.getElementById("loanStartDate").value = '';
+        document.getElementById("loanResult").innerHTML = '';
+
+        // Reload active loans
+        loadActiveLoans();
+    } catch (error) {
+        alert("Error adding loan. Please try again.");
+    }
+}
+
+// -------------------------
+// Load Active Loans
+// -------------------------
+async function loadActiveLoans() {
+    try {
+        const res = await fetch(`${API}/loans`);
+        const loans = await res.json();
+
+        const container = document.getElementById("activeLoans");
+
+        if (loans.length === 0) {
+            container.innerHTML = '<p class="text-muted">No active loans</p>';
+            return;
+        }
+
+        let html = '';
+        loans.forEach(loan => {
+            const totalPayment = loan.monthly_payment + loan.extra_payment;
+            html += `
+                <div class="loan-item">
+                    <div class="loan-info">
+                        <div class="loan-name">${loan.name}</div>
+                        <div class="loan-details">
+                            $${loan.principal.toLocaleString()} @ ${loan.annual_rate}% for ${loan.years} years
+                        </div>
+                        <div class="loan-date">Started: ${formatDate(loan.start_date)}</div>
+                    </div>
+                    <div class="loan-payment">
+                        <div class="loan-payment-label">Monthly Payment</div>
+                        <div class="loan-payment-amount">$${totalPayment.toFixed(2)}</div>
+                    </div>
+                    <button class="transaction-delete" onclick="deactivateLoan(${loan.id})">Deactivate</button>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    } catch (error) {
+        console.error("Error loading loans:", error);
+    }
+}
+
+// -------------------------
+// Deactivate Loan
+// -------------------------
+async function deactivateLoan(id) {
+    if (!confirm("Are you sure you want to deactivate this loan?")) {
+        return;
+    }
+
+    try {
+        await fetch(`${API}/loans/${id}`, {
+            method: "DELETE"
+        });
+
+        loadActiveLoans();
+    } catch (error) {
+        alert("Error deactivating loan.");
     }
 }
 

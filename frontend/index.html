@@ -10,29 +10,33 @@
     <!-- Navigation Bar -->
     <nav class="navbar">
         <div class="navbar-brand">
-            <span class="brand-icon">🍃</span>
-            <span class="brand-name">LedgerLeaf</span>
+            <img src="logo.jpg" alt="LedgerLeaf" class="brand-logo">
         </div>
         <div class="navbar-menu">
             <button class="nav-btn active" onclick="switchTab('dashboard')">
-                <span class="nav-icon">📊</span>
-                <span>Dashboard</span>
+                Dashboard
             </button>
             <button class="nav-btn" onclick="switchTab('transactions')">
-                <span class="nav-icon">💳</span>
-                <span>Transactions</span>
+                Transactions
             </button>
             <button class="nav-btn" onclick="switchTab('loan')">
-                <span class="nav-icon">🧮</span>
-                <span>Loan Calculator</span>
+                Loan Calculator
             </button>
         </div>
         <div class="navbar-tagline">
-            <span>Grow Your Financial Future</span>
+            <span>Financial Management Platform</span>
         </div>
     </nav>
 
     <div class="container">
+        <!-- Month Selector -->
+        <div class="month-selector">
+            <button class="month-nav-btn" onclick="changeMonth(-1)">← Previous</button>
+            <div class="month-display">
+                <span id="currentMonth"></span>
+            </div>
+            <button class="month-nav-btn" onclick="changeMonth(1)">Next →</button>
+        </div>
 
         <!-- Dashboard Section -->
         <section id="dashboard-section" class="section active">
@@ -154,6 +158,11 @@
                 <h2>Loan Calculator</h2>
 
                 <div class="form-group">
+                    <label for="loanName">Loan Name</label>
+                    <input id="loanName" type="text" placeholder="e.g., Car Loan, Mortgage">
+                </div>
+
+                <div class="form-group">
                     <label for="principal">Loan Amount ($)</label>
                     <input id="principal" type="number" placeholder="e.g., 25000" step="0.01">
                 </div>
@@ -174,9 +183,22 @@
                     <small>Optional: Pay off your loan faster</small>
                 </div>
 
+                <div class="form-group">
+                    <label for="loanStartDate">Start Date</label>
+                    <input id="loanStartDate" type="date">
+                </div>
+
                 <button onclick="calculateLoan()" class="btn-primary">Calculate Loan</button>
+                <button onclick="addLoanToBudget()" class="btn-primary" style="margin-top: 10px;">Add to Monthly Budget</button>
 
                 <div id="loanResult" class="result-container"></div>
+            </div>
+
+            <div class="card">
+                <h2>Active Loans</h2>
+                <div id="activeLoans" class="loan-list">
+                    <p class="text-muted">No active loans</p>
+                </div>
             </div>
         </section>
     </div>
