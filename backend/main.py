@@ -717,15 +717,8 @@ def get_budget_status(month: Optional[int] = None, year: Optional[int] = None):
 
     # Build status for each budget
     status = []
-    total_spending = sum(spending.values())
-
     for category, limit in budgets.items():
-        # For "Overall" budget, use total spending across all categories
-        if category == "Overall":
-            spent = total_spending
-        else:
-            spent = spending.get(category, 0)
-
+        spent = spending.get(category, 0)
         percentage = (spent / limit * 100) if limit > 0 else 0
         remaining = limit - spent
 
@@ -735,11 +728,7 @@ def get_budget_status(month: Optional[int] = None, year: Optional[int] = None):
             "spent": round(spent, 2),
             "remaining": round(remaining, 2),
             "percentage": round(percentage, 1),
-            "is_over": spent > limit,
-            "is_overall": category == "Overall"
+            "is_over": spent > limit
         })
-
-    # Sort to put Overall first if it exists
-    status.sort(key=lambda x: (not x["is_overall"], x["category"]))
 
     return status

@@ -27,20 +27,16 @@
                 Loan Calculator
             </button>
         </div>
-        <div class="navbar-tagline">
-            <span>Financial Management Platform</span>
-        </div>
-    </nav>
-
-    <div class="container">
-        <!-- Month Selector -->
-        <div class="month-selector">
+        <div class="navbar-month-selector">
             <button class="month-nav-btn" onclick="changeMonth(-1)">← Previous</button>
             <div class="month-display">
                 <span id="currentMonth"></span>
             </div>
             <button class="month-nav-btn" onclick="changeMonth(1)">Next →</button>
         </div>
+    </nav>
+
+    <div class="container">
 
         <!-- Dashboard Section -->
         <section id="dashboard-section" class="section active">
@@ -208,7 +204,6 @@
                             <label for="budget-category">Category</label>
                             <select id="budget-category" required>
                                 <option value="">Select category</option>
-                                <option value="Overall">Overall Monthly Budget</option>
                                 <option value="Housing">Housing</option>
                                 <option value="Food">Food & Dining</option>
                                 <option value="Transportation">Transportation</option>

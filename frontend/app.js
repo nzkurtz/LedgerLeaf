@@ -961,15 +961,17 @@ function displayBudgetStatus(status) {
     status.forEach(budget => {
         const progressWidth = Math.min(budget.percentage, 100);
         const statusClass = budget.is_over ? 'over-budget' : (budget.percentage >= 80 ? 'warning' : 'ok');
-        const itemClass = budget.is_overall ? 'budget-item-overall' : 'budget-item';
 
         html += `
-            <div class="${itemClass} ${statusClass}">
+            <div class="budget-item ${statusClass}">
                 <div class="budget-header">
-                    <span class="budget-category">${budget.category}</span>
-                    <span class="budget-amounts">$${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}</span>
+                    <div class="budget-header-left">
+                        <span class="budget-category">${budget.category}</span>
+                        <span class="budget-amounts">$${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}</span>
+                    </div>
+                    <button class="budget-delete-btn" onclick="deleteBudget('${budget.category}')" title="Delete budget">×</button>
                 </div>
-                <div class="budget-progress-bar ${budget.is_overall ? 'overall' : ''}">
+                <div class="budget-progress-bar">
                     <div class="budget-progress-fill ${statusClass}" style="width: ${progressWidth}%"></div>
                 </div>
                 <div class="budget-footer">
@@ -983,4 +985,28 @@ function displayBudgetStatus(status) {
     });
 
     container.innerHTML = html;
+}
+
+async function deleteBudget(category) {
+    if (!confirm(`Are you sure you want to delete the budget for ${category}?`)) {
+        return;
+    }
+
+    try {
+        // First, get all budgets to find the ID
+        const res = await fetch(`${API}/budgets`);
+        const budgets = await res.json();
+        const budget = budgets.find(b => b.category === category);
+
+        if (budget) {
+            await fetch(`${API}/budgets/${budget.id}`, {
+                method: 'DELETE'
+            });
+
+            loadBudgetStatus();
+            loadDashboard();
+        }
+    } catch (error) {
+        alert('Error deleting budget.');
+    }
 }
