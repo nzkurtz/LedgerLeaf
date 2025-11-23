@@ -51,12 +51,13 @@ function changeMonth(delta) {
 function switchTab(tab) {
     const dashboardSection = document.getElementById('dashboard-section');
     const transactionsSection = document.getElementById('transactions-section');
+    const budgetsSection = document.getElementById('budgets-section');
     const loanSection = document.getElementById('loan-section');
     const navBtns = document.querySelectorAll('.nav-btn');
 
     navBtns.forEach(t => t.classList.remove('active'));
 
-    [dashboardSection, transactionsSection, loanSection].forEach(s => s.classList.remove('active'));
+    [dashboardSection, transactionsSection, budgetsSection, loanSection].forEach(s => s.classList.remove('active'));
 
     if (tab === 'dashboard') {
         dashboardSection.classList.add('active');
@@ -67,9 +68,13 @@ function switchTab(tab) {
         navBtns[1].classList.add('active');
         loadTransactions();
         loadRecurringTransactions();
+    } else if (tab === 'budgets') {
+        budgetsSection.classList.add('active');
+        navBtns[2].classList.add('active');
+        loadBudgetStatus();
     } else if (tab === 'loan') {
         loanSection.classList.add('active');
-        navBtns[2].classList.add('active');
+        navBtns[3].classList.add('active');
         loadActiveLoans();
     }
 }
@@ -906,4 +911,76 @@ function generateRecurringTransactions(recurring, month, year) {
     });
 
     return recurringTransactions;
+}
+
+// -------------------------
+// Budgets
+// -------------------------
+
+async function setBudget(event) {
+    event.preventDefault();
+
+    const category = document.getElementById('budget-category').value;
+    const monthly_limit = parseFloat(document.getElementById('budget-limit').value);
+
+    try {
+        await fetch(`${API}/budgets`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({category, monthly_limit})
+        });
+
+        document.getElementById('budget-form').reset();
+        loadBudgetStatus();
+        loadDashboard();
+        alert('Budget set successfully!');
+    } catch (error) {
+        alert('Error setting budget. Make sure the backend is running.');
+    }
+}
+
+async function loadBudgetStatus() {
+    try {
+        const res = await fetch(`${API}/budgets/status?month=${currentMonth}&year=${currentYear}`);
+        const status = await res.json();
+        displayBudgetStatus(status);
+    } catch (error) {
+        console.error('Error loading budget status:', error);
+    }
+}
+
+function displayBudgetStatus(status) {
+    const container = document.getElementById('budgetStatus');
+
+    if (status.length === 0) {
+        container.innerHTML = '<p class="text-muted">No budgets set yet</p>';
+        return;
+    }
+
+    let html = '';
+    status.forEach(budget => {
+        const progressWidth = Math.min(budget.percentage, 100);
+        const statusClass = budget.is_over ? 'over-budget' : (budget.percentage >= 80 ? 'warning' : 'ok');
+        const itemClass = budget.is_overall ? 'budget-item-overall' : 'budget-item';
+
+        html += `
+            <div class="${itemClass} ${statusClass}">
+                <div class="budget-header">
+                    <span class="budget-category">${budget.category}</span>
+                    <span class="budget-amounts">$${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}</span>
+                </div>
+                <div class="budget-progress-bar ${budget.is_overall ? 'overall' : ''}">
+                    <div class="budget-progress-fill ${statusClass}" style="width: ${progressWidth}%"></div>
+                </div>
+                <div class="budget-footer">
+                    <span class="budget-percentage">${budget.percentage}% used</span>
+                    <span class="budget-remaining ${budget.is_over ? 'over' : ''}">
+                        ${budget.is_over ? 'Over by' : 'Remaining'}: $${Math.abs(budget.remaining).toFixed(2)}
+                    </span>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
 }

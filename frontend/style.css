@@ -706,6 +706,118 @@ body {
     color: #2b6ba8;
 }
 
+/* Budget Styles */
+.budget-item {
+    background: white;
+    padding: 20px;
+    margin-bottom: 15px;
+    border: 2px solid #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.budget-item.warning {
+    border-color: #ffc107;
+}
+
+.budget-item.over-budget {
+    border-color: #dc3545;
+}
+
+.budget-item-overall {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 25px;
+    margin-bottom: 25px;
+    border: 3px solid #2b6ba8;
+    box-shadow: 0 4px 12px rgba(43, 107, 168, 0.2);
+}
+
+.budget-item-overall.warning {
+    border-color: #ffc107;
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
+}
+
+.budget-item-overall.over-budget {
+    border-color: #dc3545;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.2);
+}
+
+.budget-item-overall .budget-category {
+    font-size: 1.3rem;
+    color: #2b6ba8;
+}
+
+.budget-item-overall .budget-amounts {
+    font-size: 1.1rem;
+}
+
+.budget-progress-bar.overall {
+    height: 25px;
+}
+
+.budget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.budget-category {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #2d2d2d;
+}
+
+.budget-amounts {
+    font-size: 0.95rem;
+    color: #666;
+    font-weight: 600;
+}
+
+.budget-progress-bar {
+    height: 20px;
+    background: #e9ecef;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.budget-progress-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.budget-progress-fill.ok {
+    background: linear-gradient(90deg, #56ab2f 0%, #7bc043 100%);
+}
+
+.budget-progress-fill.warning {
+    background: linear-gradient(90deg, #f0ad4e 0%, #ffc107 100%);
+}
+
+.budget-progress-fill.over-budget {
+    background: linear-gradient(90deg, #dc3545 0%, #ff4757 100%);
+}
+
+.budget-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.budget-percentage {
+    color: #666;
+    font-weight: 600;
+}
+
+.budget-remaining {
+    color: #56ab2f;
+    font-weight: 600;
+}
+
+.budget-remaining.over {
+    color: #dc3545;
+}
+
 @media (max-width: 768px) {
     .navbar {
         flex-direction: column;

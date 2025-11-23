@@ -76,6 +76,15 @@ def init_db():
         )
     ''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS budgets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT NOT NULL UNIQUE,
+            monthly_limit REAL NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -154,6 +163,16 @@ class RecurringTransaction(BaseModel):
     description: Optional[str]
     day_of_month: int
     is_active: bool
+    created_at: str
+
+class BudgetCreate(BaseModel):
+    category: str
+    monthly_limit: float
+
+class Budget(BaseModel):
+    id: int
+    category: str
+    monthly_limit: float
     created_at: str
 
 
@@ -604,3 +623,123 @@ def delete_recurring_transaction(recurring_id: int):
         raise HTTPException(status_code=404, detail="Recurring transaction not found")
 
     return {"message": "Recurring transaction deactivated"}
+
+# Budget Routes
+@app.post("/budgets", response_model=Budget)
+def create_or_update_budget(budget: BudgetCreate):
+    conn = get_db()
+    c = conn.cursor()
+    created_at = datetime.now().isoformat()
+
+    # Check if budget already exists for this category
+    c.execute("SELECT id FROM budgets WHERE category = ?", (budget.category,))
+    existing = c.fetchone()
+
+    if existing:
+        # Update existing budget
+        c.execute('''
+            UPDATE budgets SET monthly_limit = ? WHERE category = ?
+        ''', (budget.monthly_limit, budget.category))
+        budget_id = existing[0]
+    else:
+        # Create new budget
+        c.execute('''
+            INSERT INTO budgets (category, monthly_limit, created_at)
+            VALUES (?, ?, ?)
+        ''', (budget.category, budget.monthly_limit, created_at))
+        budget_id = c.lastrowid
+
+    conn.commit()
+
+    # Fetch the budget to return
+    c.execute("SELECT * FROM budgets WHERE id = ?", (budget_id,))
+    row = c.fetchone()
+    conn.close()
+
+    return Budget(**dict(row))
+
+@app.get("/budgets", response_model=List[Budget])
+def get_budgets():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM budgets ORDER BY category ASC")
+    rows = c.fetchall()
+    conn.close()
+
+    return [Budget(**dict(row)) for row in rows]
+
+@app.delete("/budgets/{budget_id}")
+def delete_budget(budget_id: int):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
+    conn.commit()
+    deleted = c.rowcount
+    conn.close()
+
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail="Budget not found")
+
+    return {"message": "Budget deleted"}
+
+@app.get("/budgets/status")
+def get_budget_status(month: Optional[int] = None, year: Optional[int] = None):
+    conn = get_db()
+    c = conn.cursor()
+
+    # Get all budgets
+    c.execute("SELECT category, monthly_limit FROM budgets")
+    budgets = {row[0]: row[1] for row in c.fetchall()}
+
+    # Get spending by category for the month
+    query = "SELECT category, SUM(amount) as total FROM expenses WHERE 1=1"
+    params = []
+
+    if month and year:
+        query += " AND strftime('%Y', date) = ? AND strftime('%m', date) = ?"
+        params.append(str(year))
+        params.append(f"{month:02d}")
+
+    query += " GROUP BY category"
+    c.execute(query, params)
+    spending = {row[0]: row[1] for row in c.fetchall()}
+
+    # Get recurring transaction expenses
+    c.execute("SELECT category, amount FROM recurring_transactions WHERE type = 'expense'")
+    recurring = c.fetchall()
+    for category, amount in recurring:
+        if category in spending:
+            spending[category] += amount
+        else:
+            spending[category] = amount
+
+    conn.close()
+
+    # Build status for each budget
+    status = []
+    total_spending = sum(spending.values())
+
+    for category, limit in budgets.items():
+        # For "Overall" budget, use total spending across all categories
+        if category == "Overall":
+            spent = total_spending
+        else:
+            spent = spending.get(category, 0)
+
+        percentage = (spent / limit * 100) if limit > 0 else 0
+        remaining = limit - spent
+
+        status.append({
+            "category": category,
+            "limit": round(limit, 2),
+            "spent": round(spent, 2),
+            "remaining": round(remaining, 2),
+            "percentage": round(percentage, 1),
+            "is_over": spent > limit,
+            "is_overall": category == "Overall"
+        })
+
+    # Sort to put Overall first if it exists
+    status.sort(key=lambda x: (not x["is_overall"], x["category"]))
+
+    return status
