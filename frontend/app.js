@@ -1,5 +1,6 @@
 const API = "http://127.0.0.1:8000";
 let currentTransactionType = 'expense';
+let categoryChart = null;
 
 // Month state
 let currentMonth = new Date().getMonth() + 1; // 1-12
@@ -65,6 +66,7 @@ function switchTab(tab) {
         transactionsSection.classList.add('active');
         navBtns[1].classList.add('active');
         loadTransactions();
+        loadRecurringTransactions();
     } else if (tab === 'loan') {
         loanSection.classList.add('active');
         navBtns[2].classList.add('active');
@@ -101,6 +103,26 @@ function setTransactionType(type) {
     }
 }
 
+function toggleRecurring() {
+    const isRecurring = document.getElementById('is-recurring').checked;
+    const dateField = document.getElementById('date-field');
+    const dayOfMonthField = document.getElementById('day-of-month-field');
+    const dateInput = document.getElementById('date');
+    const dayOfMonthInput = document.getElementById('day-of-month');
+
+    if (isRecurring) {
+        dateField.style.display = 'none';
+        dayOfMonthField.style.display = 'block';
+        dateInput.required = false;
+        dayOfMonthInput.required = true;
+    } else {
+        dateField.style.display = 'block';
+        dayOfMonthField.style.display = 'none';
+        dateInput.required = true;
+        dayOfMonthInput.required = false;
+    }
+}
+
 // -------------------------
 // Add Transaction
 // -------------------------
@@ -108,39 +130,144 @@ async function addTransaction(event) {
     event.preventDefault();
 
     const amount = parseFloat(document.getElementById('amount').value);
-    const date = document.getElementById('date').value;
+    const isRecurring = document.getElementById('is-recurring').checked;
 
     try {
-        if (currentTransactionType === 'expense') {
-            const category = document.getElementById('category').value;
-            const description = document.getElementById('description').value;
+        if (isRecurring) {
+            // Create recurring transaction
+            const day_of_month = parseInt(document.getElementById('day-of-month').value);
+            const data = {
+                type: currentTransactionType,
+                amount: amount,
+                day_of_month: day_of_month
+            };
 
-            await fetch(`${API}/expenses`, {
+            if (currentTransactionType === 'expense') {
+                data.category = document.getElementById('category').value;
+                data.description = document.getElementById('description').value;
+            } else {
+                data.source = document.getElementById('source').value;
+            }
+
+            await fetch(`${API}/recurring-transactions`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({amount, category, description, date})
+                body: JSON.stringify(data)
             });
+
+            alert('Recurring transaction added successfully!');
         } else {
-            const source = document.getElementById('source').value;
+            // Create regular transaction
+            const date = document.getElementById('date').value;
 
-            await fetch(`${API}/income`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({amount, source, date})
-            });
+            if (currentTransactionType === 'expense') {
+                const category = document.getElementById('category').value;
+                const description = document.getElementById('description').value;
+
+                await fetch(`${API}/expenses`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({amount, category, description, date})
+                });
+            } else {
+                const source = document.getElementById('source').value;
+
+                await fetch(`${API}/income`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({amount, source, date})
+                });
+            }
+
+            alert('Transaction added successfully!');
         }
 
         document.getElementById('transaction-form').reset();
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('date').value = today;
+        document.getElementById('is-recurring').checked = false;
+        toggleRecurring();
 
         loadDashboard();
         loadTransactions();
-
-        alert('Transaction added successfully!');
+        loadRecurringTransactions();
     } catch (error) {
         alert('Error adding transaction. Make sure the backend is running.');
     }
+}
+
+// -------------------------
+// Render Category Pie Chart
+// -------------------------
+function renderCategoryChart(categories) {
+    const ctx = document.getElementById('categoryChart');
+
+    if (!ctx) return;
+
+    // Destroy existing chart if it exists
+    if (categoryChart) {
+        categoryChart.destroy();
+    }
+
+    const labels = Object.keys(categories);
+    const data = Object.values(categories);
+
+    if (labels.length === 0) {
+        return;
+    }
+
+    const colors = [
+        '#2b6ba8',
+        '#56ab2f',
+        '#dc3545',
+        '#ffc107',
+        '#17a2b8',
+        '#6f42c1',
+        '#fd7e14',
+        '#20c997',
+        '#e83e8c',
+        '#6c757d'
+    ];
+
+    categoryChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += '$' + context.parsed.toFixed(2);
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 
 // -------------------------
@@ -155,14 +282,57 @@ async function loadDashboard() {
         const loanTotal = await loanTotalRes.json();
         const loanPayments = loanTotal.total || 0;
 
-        const totalExpensesWithLoans = analytics.total_expenses + loanPayments;
+        // Fetch recurring transactions to calculate their total and add to categories
+        let recurringExpenseTotal = 0;
+        let recurringIncomeTotal = 0;
+        const recurringByCategory = {};
+        try {
+            const recurringRes = await fetch(`${API}/recurring-transactions`);
+            const recurring = await recurringRes.json();
+            recurring.forEach(r => {
+                if (r.type === 'expense') {
+                    recurringExpenseTotal += r.amount;
+                    if (recurringByCategory[r.category]) {
+                        recurringByCategory[r.category] += r.amount;
+                    } else {
+                        recurringByCategory[r.category] = r.amount;
+                    }
+                } else if (r.type === 'income') {
+                    recurringIncomeTotal += r.amount;
+                }
+            });
+        } catch (error) {
+            console.error('Error loading recurring transactions for analytics:', error);
+        }
 
-        document.getElementById('totalIncome').textContent = `$${analytics.total_income.toFixed(2)}`;
-        document.getElementById('totalExpenses').textContent = `$${totalExpensesWithLoans.toFixed(2)}`;
-        document.getElementById('netAmount').textContent = `$${(analytics.total_income - totalExpensesWithLoans).toFixed(2)}`;
+        const totalIncomeWithRecurring = analytics.total_income + recurringIncomeTotal;
+        const totalExpensesWithLoansAndRecurring = analytics.total_expenses + loanPayments + recurringExpenseTotal;
+
+        document.getElementById('totalIncome').textContent = `$${totalIncomeWithRecurring.toFixed(2)}`;
+        document.getElementById('totalExpenses').textContent = `$${totalExpensesWithLoansAndRecurring.toFixed(2)}`;
+        document.getElementById('netAmount').textContent = `$${(totalIncomeWithRecurring - totalExpensesWithLoansAndRecurring).toFixed(2)}`;
 
         const categoryContainer = document.getElementById('categoryBreakdown');
         let html = '';
+
+        // Combine categories with loan payments and recurring transactions for chart
+        const allCategories = {...analytics.by_category};
+
+        // Add recurring expenses to categories
+        for (const [category, amount] of Object.entries(recurringByCategory)) {
+            if (allCategories[category]) {
+                allCategories[category] += amount;
+            } else {
+                allCategories[category] = amount;
+            }
+        }
+
+        if (loanPayments > 0) {
+            allCategories['Loan Payments'] = loanPayments;
+        }
+
+        // Render pie chart
+        renderCategoryChart(allCategories);
 
         if (loanPayments > 0) {
             html += `
@@ -173,14 +343,16 @@ async function loadDashboard() {
             `;
         }
 
-        if (Object.keys(analytics.by_category).length > 0) {
-            for (const [category, amount] of Object.entries(analytics.by_category)) {
-                html += `
-                    <div class="category-item">
-                        <span class="category-name">${category}</span>
-                        <span class="category-amount">$${amount.toFixed(2)}</span>
-                    </div>
-                `;
+        if (Object.keys(allCategories).length > 0) {
+            for (const [category, amount] of Object.entries(allCategories)) {
+                if (category !== 'Loan Payments') {
+                    html += `
+                        <div class="category-item">
+                            <span class="category-name">${category}</span>
+                            <span class="category-amount">$${amount.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
             }
         }
 
@@ -196,12 +368,43 @@ async function loadDashboard() {
         const incomeRes = await fetch(`${API}/income?month=${currentMonth}&year=${currentYear}`);
         const income = await incomeRes.json();
 
+        // Fetch loans and generate payments for recent transactions
+        let loanPaymentsForRecent = [];
+        try {
+            const loansRes = await fetch(`${API}/loans`);
+            const loans = await loansRes.json();
+            loanPaymentsForRecent = generateLoanPayments(loans, currentMonth, currentYear);
+        } catch (error) {
+            console.error('Error loading loans for recent transactions:', error);
+        }
+
+        // Fetch recurring transactions for recent transactions
+        let recurringPaymentsForRecent = [];
+        try {
+            const recurringRes = await fetch(`${API}/recurring-transactions`);
+            const recurring = await recurringRes.json();
+            recurringPaymentsForRecent = generateRecurringTransactions(recurring, currentMonth, currentYear);
+        } catch (error) {
+            console.error('Error loading recurring transactions for recent transactions:', error);
+        }
+
         const allTransactions = [
             ...expenses.map(e => ({...e, type: 'expense'})),
-            ...income.map(i => ({...i, type: 'income', category: i.source}))
+            ...income.map(i => ({...i, type: 'income', category: i.source})),
+            ...loanPaymentsForRecent,
+            ...recurringPaymentsForRecent
         ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
 
         displayRecentTransactions(allTransactions);
+
+        // Calculate and display monthly stats
+        const totalCount = expenses.length + income.length;
+        const avgExpense = expenses.length > 0 ? expenses.reduce((sum, e) => sum + e.amount, 0) / expenses.length : 0;
+        const largestExpense = expenses.length > 0 ? Math.max(...expenses.map(e => e.amount)) : 0;
+
+        document.getElementById('totalTransactions').textContent = totalCount;
+        document.getElementById('avgExpense').textContent = `$${avgExpense.toFixed(2)}`;
+        document.getElementById('largestExpense').textContent = `$${largestExpense.toFixed(2)}`;
     } catch (error) {
         console.error('Error loading dashboard:', error);
     }
@@ -238,6 +441,49 @@ function displayRecentTransactions(transactions) {
 }
 
 // -------------------------
+// Generate Loan Payment Transactions
+// -------------------------
+function generateLoanPayments(loans, month, year) {
+    const loanPayments = [];
+
+    if (!loans || !Array.isArray(loans)) {
+        return loanPayments;
+    }
+
+    loans.forEach(loan => {
+        try {
+            const startDate = new Date(loan.start_date + 'T00:00:00');
+            const startYear = startDate.getFullYear();
+            const startMonth = startDate.getMonth() + 1;
+            const dayOfMonth = startDate.getDate();
+
+            // First payment is in the month after the loan was taken out
+            if (startYear < year || (startYear === year && startMonth < month)) {
+                // Construct date string directly to avoid timezone issues
+                const day = String(dayOfMonth).padStart(2, '0');
+                const monthStr = String(month).padStart(2, '0');
+                const dateString = `${year}-${monthStr}-${day}`;
+                const totalPayment = loan.monthly_payment + loan.extra_payment;
+
+                loanPayments.push({
+                    id: `loan-${loan.id}`,
+                    amount: totalPayment,
+                    category: 'Loan Payment',
+                    description: loan.name,
+                    date: dateString,
+                    type: 'expense',
+                    isLoan: true
+                });
+            }
+        } catch (error) {
+            console.error('Error generating loan payment:', error);
+        }
+    });
+
+    return loanPayments;
+}
+
+// -------------------------
 // Load All Transactions
 // -------------------------
 async function loadTransactions() {
@@ -254,9 +500,31 @@ async function loadTransactions() {
         const incomeRes = await fetch(`${API}/income?month=${currentMonth}&year=${currentYear}`);
         const income = await incomeRes.json();
 
+        // Fetch loans and generate payments
+        let loanPayments = [];
+        try {
+            const loansRes = await fetch(`${API}/loans`);
+            const loans = await loansRes.json();
+            loanPayments = generateLoanPayments(loans, currentMonth, currentYear);
+        } catch (error) {
+            console.error('Error loading loans:', error);
+        }
+
+        // Fetch recurring transactions and generate for current month
+        let recurringPayments = [];
+        try {
+            const recurringRes = await fetch(`${API}/recurring-transactions`);
+            const recurring = await recurringRes.json();
+            recurringPayments = generateRecurringTransactions(recurring, currentMonth, currentYear);
+        } catch (error) {
+            console.error('Error loading recurring transactions:', error);
+        }
+
         const allTransactions = [
             ...expenses.map(e => ({...e, type: 'expense'})),
-            ...income.map(i => ({...i, type: 'income', category: i.source}))
+            ...income.map(i => ({...i, type: 'income', category: i.source})),
+            ...loanPayments,
+            ...recurringPayments
         ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
         displayAllTransactions(allTransactions);
@@ -279,6 +547,7 @@ function displayAllTransactions(transactions) {
         const sign = t.type === 'income' ? '+' : '-';
         const displayCategory = t.type === 'income' ? (t.source || 'Income') : t.category;
         const displayDesc = t.type === 'income' ? '' : t.description;
+        const deleteButton = (t.isLoan || t.isRecurring) ? '' : `<button class="transaction-delete" onclick="deleteTransaction(${t.id}, '${t.type}')">Delete</button>`;
 
         html += `
             <div class="transaction-item ${typeClass}">
@@ -288,7 +557,7 @@ function displayAllTransactions(transactions) {
                     <div class="transaction-date">${formatDate(t.date)}</div>
                 </div>
                 <span class="transaction-amount ${typeClass}">${sign}$${t.amount.toFixed(2)}</span>
-                <button class="transaction-delete" onclick="deleteTransaction(${t.id}, '${t.type}')">Delete</button>
+                ${deleteButton}
             </div>
         `;
     });
@@ -544,4 +813,97 @@ function displayLoanResults(result, extraPayment) {
     }
 
     container.innerHTML = html;
+}
+
+// -------------------------
+// Recurring Transactions
+// -------------------------
+
+async function loadRecurringTransactions() {
+    try {
+        const res = await fetch(`${API}/recurring-transactions`);
+        const recurring = await res.json();
+        displayRecurringTransactions(recurring);
+    } catch (error) {
+        console.error('Error loading recurring transactions:', error);
+    }
+}
+
+function displayRecurringTransactions(recurring) {
+    const container = document.getElementById('recurringList');
+
+    if (recurring.length === 0) {
+        container.innerHTML = '<p class="text-muted">No recurring transactions yet</p>';
+        return;
+    }
+
+    let html = '';
+    recurring.forEach(r => {
+        const typeClass = r.type;
+        const displayCategory = r.type === 'income' ? (r.source || 'Income') : r.category;
+        const displayDesc = r.type === 'income' ? '' : r.description;
+
+        html += `
+            <div class="transaction-item ${typeClass}">
+                <div class="transaction-info">
+                    <div class="transaction-category">${displayCategory}</div>
+                    ${displayDesc ? `<div class="transaction-desc">${displayDesc}</div>` : ''}
+                    <div class="transaction-date">Day ${r.day_of_month} of each month</div>
+                </div>
+                <span class="transaction-amount ${typeClass}">$${r.amount.toFixed(2)}</span>
+                <button class="transaction-delete" onclick="deleteRecurringTransaction(${r.id})">Delete</button>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+async function deleteRecurringTransaction(id) {
+    if (!confirm('Are you sure you want to delete this recurring transaction?')) {
+        return;
+    }
+
+    try {
+        await fetch(`${API}/recurring-transactions/${id}`, {
+            method: 'DELETE'
+        });
+
+        loadRecurringTransactions();
+        loadTransactions();
+        loadDashboard();
+    } catch (error) {
+        alert('Error deleting recurring transaction.');
+    }
+}
+
+function generateRecurringTransactions(recurring, month, year) {
+    const recurringTransactions = [];
+
+    if (!recurring || !Array.isArray(recurring)) {
+        return recurringTransactions;
+    }
+
+    recurring.forEach(r => {
+        try {
+            const day = String(r.day_of_month).padStart(2, '0');
+            const monthStr = String(month).padStart(2, '0');
+            const dateString = `${year}-${monthStr}-${day}`;
+
+            recurringTransactions.push({
+                id: `recurring-${r.id}`,
+                amount: r.amount,
+                category: r.type === 'expense' ? r.category : r.source,
+                description: r.description,
+                source: r.source,
+                date: dateString,
+                type: r.type,
+                isRecurring: true
+            });
+        } catch (error) {
+            console.error('Error generating recurring transaction:', error);
+        }
+    });
+
+    return recurringTransactions;
 }

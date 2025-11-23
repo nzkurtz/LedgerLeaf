@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LedgerLeaf - Expense Tracker</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -55,17 +56,40 @@
                 </div>
             </div>
 
-            <div class="card">
-                <h2>Spending by Category</h2>
-                <div id="categoryBreakdown" class="category-list">
-                    <p class="text-muted">No expenses yet</p>
+            <div class="dashboard-grid">
+                <div class="card">
+                    <h2>Spending by Category</h2>
+                    <div class="chart-container">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                    <div id="categoryBreakdown" class="category-list">
+                        <p class="text-muted">No expenses yet</p>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <h2>Recent Transactions</h2>
-                <div id="recentTransactions" class="transaction-list">
-                    <p class="text-muted">No transactions yet</p>
+                <div class="card">
+                    <h2>Recent Transactions</h2>
+                    <div id="recentTransactions" class="transaction-list">
+                        <p class="text-muted">No transactions yet</p>
+                    </div>
+
+                    <div class="monthly-stats">
+                        <h3>Monthly Summary</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Transactions</div>
+                                <div class="stat-value" id="totalTransactions">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Average Expense</div>
+                                <div class="stat-value" id="avgExpense">$0.00</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Largest Expense</div>
+                                <div class="stat-value" id="largestExpense">$0.00</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -86,9 +110,13 @@
                             <label for="amount">Amount ($)</label>
                             <input id="amount" type="number" step="0.01" placeholder="0.00" required>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" id="date-field">
                             <label for="date">Date</label>
                             <input id="date" type="date" required>
+                        </div>
+                        <div class="form-group" id="day-of-month-field" style="display: none;">
+                            <label for="day-of-month">Day of Month</label>
+                            <input id="day-of-month" type="number" min="1" max="31" placeholder="1">
                         </div>
                     </div>
 
@@ -122,6 +150,13 @@
                         </div>
                     </div>
 
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="is-recurring" onchange="toggleRecurring()">
+                            Make this recurring (monthly)
+                        </label>
+                    </div>
+
                     <button type="submit" class="btn-primary">Add Transaction</button>
                 </form>
             </div>
@@ -150,6 +185,13 @@
                     <p class="text-muted">No transactions yet</p>
                 </div>
             </div>
+
+            <div class="card">
+                <h2>Active Recurring Transactions</h2>
+                <div id="recurringList" class="transaction-list">
+                    <p class="text-muted">No recurring transactions yet</p>
+                </div>
+            </div>
         </section>
 
         <!-- Loan Section -->
@@ -162,25 +204,29 @@
                     <input id="loanName" type="text" placeholder="e.g., Car Loan, Mortgage">
                 </div>
 
-                <div class="form-group">
-                    <label for="principal">Loan Amount ($)</label>
-                    <input id="principal" type="number" placeholder="e.g., 25000" step="0.01">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="principal">Loan Amount ($)</label>
+                        <input id="principal" type="number" placeholder="e.g., 25000" step="0.01">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rate">Annual Interest Rate (%)</label>
+                        <input id="rate" type="number" placeholder="e.g., 5.5" step="0.01">
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="rate">Annual Interest Rate (%)</label>
-                    <input id="rate" type="number" placeholder="e.g., 5.5" step="0.01">
-                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="years">Loan Term (years)</label>
+                        <input id="years" type="number" placeholder="e.g., 5" min="1" max="30">
+                    </div>
 
-                <div class="form-group">
-                    <label for="years">Loan Term (years)</label>
-                    <input id="years" type="number" placeholder="e.g., 5" min="1" max="30">
-                </div>
-
-                <div class="form-group">
-                    <label for="extra_payment">Extra Monthly Payment ($)</label>
-                    <input id="extra_payment" type="number" placeholder="0" step="0.01">
-                    <small>Optional: Pay off your loan faster</small>
+                    <div class="form-group">
+                        <label for="extra_payment">Extra Monthly Payment ($)</label>
+                        <input id="extra_payment" type="number" placeholder="0" step="0.01">
+                        <small>Optional: Pay off your loan faster</small>
+                    </div>
                 </div>
 
                 <div class="form-group">

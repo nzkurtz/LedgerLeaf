@@ -62,6 +62,20 @@ def init_db():
         )
     ''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS recurring_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category TEXT,
+            source TEXT,
+            description TEXT,
+            day_of_month INTEGER NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -120,6 +134,25 @@ class Loan(BaseModel):
     extra_payment: float
     monthly_payment: float
     start_date: str
+    is_active: bool
+    created_at: str
+
+class RecurringTransactionCreate(BaseModel):
+    type: str  # 'expense' or 'income'
+    amount: float
+    category: Optional[str] = None
+    source: Optional[str] = None
+    description: Optional[str] = ""
+    day_of_month: int
+
+class RecurringTransaction(BaseModel):
+    id: int
+    type: str
+    amount: float
+    category: Optional[str]
+    source: Optional[str]
+    description: Optional[str]
+    day_of_month: int
     is_active: bool
     created_at: str
 
@@ -513,3 +546,61 @@ def get_monthly_loan_total(month: Optional[int] = None, year: Optional[int] = No
             total += monthly_payment + extra_payment
 
     return {"total": round(total, 2)}
+
+# Recurring Transaction Routes
+@app.post("/recurring-transactions", response_model=RecurringTransaction)
+def create_recurring_transaction(recurring: RecurringTransactionCreate):
+    conn = get_db()
+    c = conn.cursor()
+    created_at = datetime.now().isoformat()
+
+    c.execute('''
+        INSERT INTO recurring_transactions (type, amount, category, source, description, day_of_month, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (recurring.type, recurring.amount, recurring.category, recurring.source, recurring.description, recurring.day_of_month, created_at))
+
+    conn.commit()
+    recurring_id = c.lastrowid
+    conn.close()
+
+    return RecurringTransaction(
+        id=recurring_id,
+        type=recurring.type,
+        amount=recurring.amount,
+        category=recurring.category,
+        source=recurring.source,
+        description=recurring.description,
+        day_of_month=recurring.day_of_month,
+        is_active=True,
+        created_at=created_at
+    )
+
+@app.get("/recurring-transactions", response_model=List[RecurringTransaction])
+def get_recurring_transactions(active_only: bool = True):
+    conn = get_db()
+    c = conn.cursor()
+
+    query = "SELECT * FROM recurring_transactions"
+    if active_only:
+        query += " WHERE is_active = 1"
+    query += " ORDER BY day_of_month ASC"
+
+    c.execute(query)
+    rows = c.fetchall()
+    conn.close()
+
+    return [RecurringTransaction(**dict(row)) for row in rows]
+
+@app.delete("/recurring-transactions/{recurring_id}")
+def delete_recurring_transaction(recurring_id: int):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("UPDATE recurring_transactions SET is_active = 0 WHERE id = ?", (recurring_id,))
+    conn.commit()
+    updated = c.rowcount
+    conn.close()
+
+    if updated == 0:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+
+    return {"message": "Recurring transaction deactivated"}
