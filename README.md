@@ -8,11 +8,11 @@ LedgerLeaf is a simple expense tracking application that provides visual analyti
 
 ## Features
 
-- **Real-time Dashboard** - Visual analytics with pie charts showing spending breakdown by category
-- **Smart Transaction Management** - Track one-time and recurring transactions (subscriptions, bills, etc.)
+- **Dashboard** - Visual analytics with pie charts showing spending breakdown by category
+- **Transaction Management** - Track one-time and recurring transactions (subscriptions, bills, etc.)
 - **Budget Tracking** - Set category-specific budget limits with color-coded progress indicators
 - **Loan Calculator** - Calculate monthly payments with support for extra payments and add them to your budget
-- **Month-by-Month Analysis** - Navigate through different months to review historical spending patterns
+- **Monthly Analysis** - Navigate through different months to review historical spending patterns
 - **Flexible Filtering & Sorting** - Sort and filter transactions by date, amount, or category
 
 ## Tech Stack
