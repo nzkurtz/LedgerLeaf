@@ -1,10 +1,10 @@
 # LedgerLeaf
 
-A lightweight, privacy-focused personal finance tracker that helps you understand and control your spending.
+Personal finance management app.
 
 ## Overview
 
-LedgerLeaf is a simple expense tracking application that provides visual analytics, budget management, and loan calculations - all running locally on your machine with complete data privacy.
+LedgerLeaf is a simple expense tracking application that provides visual analytics, budget management, and loan calculations.
 
 ## Features
 
@@ -19,10 +19,6 @@ LedgerLeaf is a simple expense tracking application that provides visual analyti
 
 **Backend:** Python, FastAPI, SQLite, Pydantic, Uvicorn
 **Frontend:** Vanilla JavaScript, HTML5, CSS3, Chart.js
-
-## Privacy First
-
-All data stays local in an SQLite database. No cloud storage, no account linking, no external dependencies - complete user control over financial data.
 
 ## License
 
