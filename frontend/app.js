@@ -159,8 +159,6 @@ async function addTransaction(event) {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data)
             });
-
-            alert('Recurring transaction added successfully!');
         } else {
             // Create regular transaction
             const date = document.getElementById('date').value;
@@ -183,8 +181,6 @@ async function addTransaction(event) {
                     body: JSON.stringify({amount, source, date})
                 });
             }
-
-            alert('Transaction added successfully!');
         }
 
         document.getElementById('transaction-form').reset();
@@ -604,10 +600,6 @@ function displayAllTransactions(transactions) {
 // Delete Transaction
 // -------------------------
 async function deleteTransaction(id, type) {
-    if (!confirm('Are you sure you want to delete this transaction?')) {
-        return;
-    }
-
     try {
         const endpoint = type === 'expense' ? 'expenses' : 'income';
         await fetch(`${API}/${endpoint}/${id}`, {
@@ -617,7 +609,7 @@ async function deleteTransaction(id, type) {
         loadDashboard();
         loadTransactions();
     } catch (error) {
-        alert('Error deleting transaction.');
+        console.error('Error deleting transaction:', error);
     }
 }
 
@@ -625,7 +617,9 @@ async function deleteTransaction(id, type) {
 // Helper Functions
 // -------------------------
 function formatDate(dateString) {
-    const date = new Date(dateString);
+    // Parse date as local time to avoid timezone issues
+    const [year, month, day] = dateString.split('-');
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -677,7 +671,7 @@ async function addLoanToBudget() {
     const start_date = document.getElementById("loanStartDate").value;
 
     if (!name || !principal || !years || !start_date) {
-        alert("Please fill in all required fields including loan name and start date.");
+        console.error("Please fill in all required fields including loan name and start date.");
         return;
     }
 
@@ -696,7 +690,6 @@ async function addLoanToBudget() {
         });
 
         const loan = await res.json();
-        alert(`Loan "${loan.name}" added! Monthly payment: $${loan.monthly_payment.toFixed(2)}`);
 
         // Reset form
         document.getElementById("loanName").value = '';
@@ -710,7 +703,7 @@ async function addLoanToBudget() {
         // Reload active loans
         loadActiveLoans();
     } catch (error) {
-        alert("Error adding loan. Please try again.");
+        console.error("Error adding loan:", error);
     }
 }
 
@@ -760,10 +753,6 @@ async function loadActiveLoans() {
 // Deactivate Loan
 // -------------------------
 async function deactivateLoan(id) {
-    if (!confirm("Are you sure you want to deactivate this loan?")) {
-        return;
-    }
-
     try {
         await fetch(`${API}/loans/${id}`, {
             method: "DELETE"
@@ -771,7 +760,7 @@ async function deactivateLoan(id) {
 
         loadActiveLoans();
     } catch (error) {
-        alert("Error deactivating loan.");
+        console.error("Error deactivating loan:", error);
     }
 }
 
@@ -895,10 +884,6 @@ function displayRecurringTransactions(recurring) {
 }
 
 async function deleteRecurringTransaction(id) {
-    if (!confirm('Are you sure you want to delete this recurring transaction?')) {
-        return;
-    }
-
     try {
         await fetch(`${API}/recurring-transactions/${id}`, {
             method: 'DELETE'
@@ -908,7 +893,7 @@ async function deleteRecurringTransaction(id) {
         loadTransactions();
         loadDashboard();
     } catch (error) {
-        alert('Error deleting recurring transaction.');
+        console.error('Error deleting recurring transaction:', error);
     }
 }
 
@@ -963,9 +948,8 @@ async function setBudget(event) {
         document.getElementById('budget-form').reset();
         loadBudgetStatus();
         loadDashboard();
-        alert('Budget set successfully!');
     } catch (error) {
-        alert('Error setting budget. Make sure the backend is running.');
+        console.error('Error setting budget:', error);
     }
 }
 
@@ -1018,10 +1002,6 @@ function displayBudgetStatus(status) {
 }
 
 async function deleteBudget(category) {
-    if (!confirm(`Are you sure you want to delete the budget for ${category}?`)) {
-        return;
-    }
-
     try {
         // First, get all budgets to find the ID
         const res = await fetch(`${API}/budgets`);
@@ -1037,7 +1017,7 @@ async function deleteBudget(category) {
             loadDashboard();
         }
     } catch (error) {
-        alert('Error deleting budget.');
+        console.error('Error deleting budget:', error);
     }
 }
 
