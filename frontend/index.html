@@ -58,11 +58,13 @@
             <div class="dashboard-grid">
                 <div class="card">
                     <h2>Spending by Category</h2>
-                    <div class="chart-container">
-                        <canvas id="categoryChart"></canvas>
-                    </div>
-                    <div id="categoryBreakdown" class="category-list">
-                        <p class="text-muted">No expenses yet</p>
+                    <div class="category-content">
+                        <div class="chart-container">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                        <div id="categoryBreakdown" class="category-list">
+                            <p class="text-muted">No expenses yet</p>
+                        </div>
                     </div>
                 </div>
 
@@ -88,6 +90,14 @@
                                 <div class="stat-value" id="largestExpense">$0.00</div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Budget Progress Summary -->
+                <div class="card budget-summary-card">
+                    <h2>Budget Progress</h2>
+                    <div id="dashboardBudgets">
+                        <p class="text-muted">No budgets set yet</p>
                     </div>
                 </div>
             </div>
@@ -176,6 +186,13 @@
                             <option value="Personal">Personal Care</option>
                             <option value="Education">Education</option>
                             <option value="Other">Other</option>
+                        </select>
+                        <select id="sortBy" onchange="loadTransactions()">
+                            <option value="date-desc">Date (Newest)</option>
+                            <option value="date-asc">Date (Oldest)</option>
+                            <option value="amount-desc">Amount (High to Low)</option>
+                            <option value="amount-asc">Amount (Low to High)</option>
+                            <option value="category">Category (A-Z)</option>
                         </select>
                     </div>
                 </div>

@@ -410,6 +410,9 @@ async function loadDashboard() {
         document.getElementById('totalTransactions').textContent = totalCount;
         document.getElementById('avgExpense').textContent = `$${avgExpense.toFixed(2)}`;
         document.getElementById('largestExpense').textContent = `$${largestExpense.toFixed(2)}`;
+
+        // Load budget progress summary
+        loadDashboardBudgets();
     } catch (error) {
         console.error('Error loading dashboard:', error);
     }
@@ -494,6 +497,8 @@ function generateLoanPayments(loans, month, year) {
 async function loadTransactions() {
     try {
         const category = document.getElementById('filterCategory')?.value || '';
+        const sortBy = document.getElementById('sortBy')?.value || 'date-desc';
+
         let url = `${API}/expenses?month=${currentMonth}&year=${currentYear}`;
         if (category) {
             url += `&category=${category}`;
@@ -525,12 +530,37 @@ async function loadTransactions() {
             console.error('Error loading recurring transactions:', error);
         }
 
-        const allTransactions = [
+        let allTransactions = [
             ...expenses.map(e => ({...e, type: 'expense'})),
             ...income.map(i => ({...i, type: 'income', category: i.source})),
             ...loanPayments,
             ...recurringPayments
-        ].sort((a, b) => new Date(b.date) - new Date(a.date));
+        ];
+
+        // Apply sorting
+        switch(sortBy) {
+            case 'date-desc':
+                allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+                break;
+            case 'date-asc':
+                allTransactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+                break;
+            case 'amount-desc':
+                allTransactions.sort((a, b) => b.amount - a.amount);
+                break;
+            case 'amount-asc':
+                allTransactions.sort((a, b) => a.amount - b.amount);
+                break;
+            case 'category':
+                allTransactions.sort((a, b) => {
+                    const catA = (a.category || '').toLowerCase();
+                    const catB = (b.category || '').toLowerCase();
+                    return catA.localeCompare(catB);
+                });
+                break;
+            default:
+                allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+        }
 
         displayAllTransactions(allTransactions);
     } catch (error) {
@@ -1009,4 +1039,57 @@ async function deleteBudget(category) {
     } catch (error) {
         alert('Error deleting budget.');
     }
+}
+
+// Dashboard Budget Summary Functions
+async function loadDashboardBudgets() {
+    try {
+        const res = await fetch(`${API}/budgets/status?month=${currentMonth}&year=${currentYear}`);
+        const status = await res.json();
+        displayDashboardBudgets(status);
+    } catch (error) {
+        console.error('Error loading dashboard budgets:', error);
+    }
+}
+
+function displayDashboardBudgets(status) {
+    const container = document.getElementById('dashboardBudgets');
+
+    if (status.length === 0) {
+        container.innerHTML = '<p class="text-muted">No budgets set yet</p>';
+        return;
+    }
+
+    // Sort by spending amount (highest first) and show top 5
+    const topBudgets = status
+        .sort((a, b) => b.spent - a.spent)
+        .slice(0, 5);
+
+    let html = '<div class="dashboard-budget-list">';
+    topBudgets.forEach(budget => {
+        const progressWidth = Math.min(budget.percentage, 100);
+        const statusClass = budget.is_over ? 'over-budget' : (budget.percentage >= 80 ? 'warning' : 'ok');
+
+        html += `
+            <div class="dashboard-budget-item">
+                <div class="dashboard-budget-header">
+                    <span class="dashboard-budget-category">${budget.category}</span>
+                    <span class="dashboard-budget-percentage ${statusClass}">${budget.percentage}%</span>
+                </div>
+                <div class="dashboard-budget-progress-bar">
+                    <div class="dashboard-budget-progress-fill ${statusClass}" style="width: ${progressWidth}%"></div>
+                </div>
+                <div class="dashboard-budget-amounts">
+                    $${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+
+    if (status.length > 5) {
+        html += '<p class="dashboard-budget-more">+ ' + (status.length - 5) + ' more budgets</p>';
+    }
+
+    container.innerHTML = html;
 }
