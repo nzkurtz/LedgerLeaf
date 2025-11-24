@@ -2,6 +2,10 @@
 
 Personal finance management app.
 
+## DEVPOST
+
+https://devpost.com/nathanzkurtz
+
 ## Overview
 
 LedgerLeaf is a simple expense tracking application that provides visual analytics, budget management, and loan calculations.
